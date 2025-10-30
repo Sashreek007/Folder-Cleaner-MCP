@@ -6,49 +6,63 @@ This module provides security-critical validation functions to prevent:
 - Pattern injection attacks
 """
 
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import Optional
+import platform
+
+
+def validateDirectoryPath(pathStr: str, base_dir: Optional[Path] = None) -> Path:
+    """
+        Validate and convert a directory path string to a Path object.
+    This ensures:
+        - The path is not empty
+        - The path exists
+        - The path is actually a directory
+        - The path is accessible i.e having permissions
+    Args:
+        pathStr: String representation of dir path
+    Returns:
+        Path object representing the validated directory
+    Raises:
+        ValueError
+    """
+    if not pathStr or not pathStr.strip():
+        raise ValueError("directory path cannot be empty")
+
+    path = Path(pathStr).expanduser()
+
+    try:
+        path = path.resolve()
+    except (RuntimeError, OSError) as e:
+        raise ValueError(f"Invalid path: {pathStr}. Error: {str(e)}")
+    if base_dir and not validate_path(path, base_dir):
+        raise ValueError(
+            f"Security violation: Path '{path}' is outside allowed "
+            f"base directory '{base_dir.resolve()}'"
+        )
+
+    if not path.exists():
+        raise ValueError(f"Directory does not exist : {path}")
+
+    if not path.is_dir():
+        raise ValueError(f"Path exists but is not a directory: {path}")
+
+    try:
+        next(path.iterdir(), None)
+
+    except PermissionError:
+        raise ValueError(f"Permission denied: Cannot access directory {path}")
+    except StopIteration:
+        pass
+    return path
 
 
 def validate_path(path: Path, base_dir: Optional[Path] = None) -> bool:
     """
-    Validate that a path is safe to operate on.
+        Validate that a path is safe to operate on.
 
-    This prevents directory traversal attacks and accidental system file operations.
-
-    SECURITY CONCEPT: PATH TRAVERSAL (Also called Directory Traversal)
-    Path traversal is when an attacker tries to access files outside the intended
-    directory by using special path characters like ".." (parent directory).
-
-    Example attack scenario:
-    ------------------------
-    User input: "../../../etc/passwd"
-    Without validation: Reads system password file!
-    With validation: Blocked because path escapes base directory
-
-    HOW THIS FUNCTION PREVENTS ATTACKS:
-     1. resolve() - Converts path to absolute form and follows symlinks
-       - Before: "folder/../../../etc/passwd"
-       - After: "/etc/passwd" (reveals the real location)
-
-    2. is_relative_to() - Checks if resolved path is within base_dir
-       - Safe: /home/user/downloads/file.txt is within /home/user/downloads
-       - Unsafe: /etc/passwd is NOT within /home/user/downloads
-
-    PATHLIB METHODS EXPLAINED:
-    - path.resolve()
-      * Converts relative paths to absolute
-      * Resolves symbolic links (shortcuts/aliases to other files)
-      * Removes . and .. components
-      * Example: Path("~/downloads/../docs").resolve()
-                 -> Path("/home/user/docs")
-
-    - path.is_relative_to(base)
-      * Python 3.9+ method
-      * Returns True if path is under base directory
-      * More reliable than string comparisons
-
+        This prevents directory traversal attacks and accidental system file operations.
     Args:
         path (Path): Path to validate (can be relative or absolute)
         base_dir (Optional[Path]): Base directory that path must be within.
@@ -66,26 +80,13 @@ def validate_path(path: Path, base_dir: Optional[Path] = None) -> bool:
         >>> validate_path(dangerous_path, base)  # False (escapes to /etc)
     """
 
+    try:
+        resolved_path = path.resolve()
 
-import re
-from pathlib import Path
-from typing import Optional
+        if base_dir:
+            base_dir = base_dir.resolve()
 
-
-def validateDirectoryPath(pathStr: str) -> Path:
-    """
-        Validate and convert a directory path string to a Path object.
-    This ensures:
-        - The path is not empty
-        - The path exists
-        - The path is actually a directory
-        - The path is accessible i.e having permissions
-    Args:
-        pathStr: String representation of dir path
-    Returns:
-        Path object representing the validated directory
-    Raises:
-        ValueError
-    """
-    if not pathStr or not pathStr.strip():
-        raise ValueError("directory path cannot be empty")
+            return resolved_path.is_relative_to(base_dir)
+        return True
+    except (ValueError, RuntimeError, OSError) as e:
+        return False

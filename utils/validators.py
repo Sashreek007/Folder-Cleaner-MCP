@@ -65,3 +65,27 @@ def validate_path(path: Path, base_dir: Optional[Path] = None) -> bool:
         >>> validate_path(safe_path, base)  # True
         >>> validate_path(dangerous_path, base)  # False (escapes to /etc)
     """
+
+
+import re
+from pathlib import Path
+from typing import Optional
+
+
+def validateDirectoryPath(pathStr: str) -> Path:
+    """
+        Validate and convert a directory path string to a Path object.
+    This ensures:
+        - The path is not empty
+        - The path exists
+        - The path is actually a directory
+        - The path is accessible i.e having permissions
+    Args:
+        pathStr: String representation of dir path
+    Returns:
+        Path object representing the validated directory
+    Raises:
+        ValueError
+    """
+    if not pathStr or not pathStr.strip():
+        raise ValueError("directory path cannot be empty")

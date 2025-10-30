@@ -11,6 +11,32 @@ from pathlib import Path
 from typing import Optional
 import platform
 
+# check for windows reserved words
+windows_reserved = [
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",  # DOS device names
+    "COM1",
+    "COM2",
+    "COM3",
+    "COM4",
+    "COM5",
+    "COM6",
+    "COM7",
+    "COM8",
+    "COM9",  # Serial ports
+    "LPT1",
+    "LPT2",
+    "LPT3",
+    "LPT4",
+    "LPT5",
+    "LPT6",
+    "LPT7",
+    "LPT8",
+    "LPT9",  # Parallel ports
+]
+
 
 def validateDirectoryPath(pathStr: str, base_dir: Optional[Path] = None) -> Path:
     """
@@ -36,7 +62,7 @@ def validateDirectoryPath(pathStr: str, base_dir: Optional[Path] = None) -> Path
         path = path.resolve()
     except (RuntimeError, OSError) as e:
         raise ValueError(f"Invalid path: {pathStr}. Error: {str(e)}")
-    if base_dir and not validate_path(path, base_dir):
+    if base_dir and not validatePath(path, base_dir):
         raise ValueError(
             f"Security violation: Path '{path}' is outside allowed "
             f"base directory '{base_dir.resolve()}'"
@@ -58,7 +84,7 @@ def validateDirectoryPath(pathStr: str, base_dir: Optional[Path] = None) -> Path
     return path
 
 
-def validate_path(path: Path, base_dir: Optional[Path] = None) -> bool:
+def validatePath(path: Path, base_dir: Optional[Path] = None) -> bool:
     """
         Validate that a path is safe to operate on.
 
@@ -119,38 +145,47 @@ def validate_filename(filename: str) -> bool:
         return False
     if "\x00" in filename:
         return False
-    # check for windows reserved words
-    windows_reserved = [
-        "CON",
-        "PRN",
-        "AUX",
-        "NUL",  # DOS device names
-        "COM1",
-        "COM2",
-        "COM3",
-        "COM4",
-        "COM5",
-        "COM6",
-        "COM7",
-        "COM8",
-        "COM9",  # Serial ports
-        "LPT1",
-        "LPT2",
-        "LPT3",
-        "LPT4",
-        "LPT5",
-        "LPT6",
-        "LPT7",
-        "LPT8",
-        "LPT9",  # Parallel ports
-    ]
 
     nameWithoutExt = filename.split(".")[0].upper()
 
-    if nameWithoutExt in windowsReserved:
+    if nameWithoutExt in windows_reserved:
         return False
 
     if any(ord(char) < 32 for char in filename):
+        return False
+
+    return True
+
+
+def validate_pattern(pattern: str) -> bool:
+    """
+    Validate a file serach pattern (glob or regex)
+    Args:
+    pattern (str): The pattern to validate (glob or regex syntax)
+
+    Returns:
+    bool: True if pattern is safe, False if potentially dangerous
+
+    Example usage:
+    >>> validate_pattern("*.txt")  # True (simple glob)
+    >>> validate_pattern(r"^\d{3}\.txt$")  # True (valid regex)
+    >>> validate_pattern("../*.txt")  # False (contains ..)
+    >>> validate_pattern("(a+)+b")  # False (ReDoS risk)
+    """
+    if not pattern:
+        return False
+    if ".." in pattern:
+        return False
+    if "/" in pattern or "\\" in pattern:
+        return False
+    regex_chars = ["^", "$", "[", "]", "(", ")", "{", "}", "|", "+"]
+    if any(char in pattern for char in regex_chars):
+        try:
+            re.compile(pattern)
+        except re.error:
+            return False
+    redos_pattern = r"\([^)]+[+*]\)[+*]"
+    if re.search(redos_pattern, pattern):
         return False
 
     return True

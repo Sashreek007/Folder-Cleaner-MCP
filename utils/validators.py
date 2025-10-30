@@ -90,3 +90,67 @@ def validate_path(path: Path, base_dir: Optional[Path] = None) -> bool:
         return True
     except (ValueError, RuntimeError, OSError) as e:
         return False
+
+
+def validate_filename(filename: str) -> bool:
+    """
+        Check if a filename is safe to use.
+
+        Args:
+        filename (str): The filename to validate (not full path, just name)
+
+    Returns:
+        bool: True if filename is safe, False if it contains dangerous patterns
+
+    Example usage:
+        >>> validate_filename("report.txt")  # True
+        >>> validate_filename("../etc/passwd")  # False
+        >>> validate_filename("CON")  # False (Windows reserved)
+        >>> validate_filename("file\x00.txt")  # False (null byte)
+    """
+
+    if not filename:
+        return False
+
+    if "/" in filename or "//" in filename:
+        return False
+
+    if filename in [".", ".."]:
+        return False
+    if "\x00" in filename:
+        return False
+    # check for windows reserved words
+    windows_reserved = [
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",  # DOS device names
+        "COM1",
+        "COM2",
+        "COM3",
+        "COM4",
+        "COM5",
+        "COM6",
+        "COM7",
+        "COM8",
+        "COM9",  # Serial ports
+        "LPT1",
+        "LPT2",
+        "LPT3",
+        "LPT4",
+        "LPT5",
+        "LPT6",
+        "LPT7",
+        "LPT8",
+        "LPT9",  # Parallel ports
+    ]
+
+    nameWithoutExt = filename.split(".")[0].upper()
+
+    if nameWithoutExt in windowsReserved:
+        return False
+
+    if any(ord(char) < 32 for char in filename):
+        return False
+
+    return True

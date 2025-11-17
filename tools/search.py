@@ -23,3 +23,5 @@ import os
 from pathlib import Path
 from typing import List, Dict
 from thefuzz import fuzz, process
+
+from core.server import mcp
